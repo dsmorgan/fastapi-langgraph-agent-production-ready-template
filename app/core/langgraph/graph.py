@@ -161,7 +161,7 @@ class LangGraphAgent:
 
         # Fetch prompt from Langfuse for this session
         # Disable caching to ensure fresh prompt fetch for each new session
-        prompt_label = state.prompt_label or "production"
+        prompt_label = state.prompt_label or settings.DEFAULT_PROMPT_LABEL
         try:
             prompt_data = await prompt_manager.get_prompt(
                 name=state.prompt_name or "system-prompt",

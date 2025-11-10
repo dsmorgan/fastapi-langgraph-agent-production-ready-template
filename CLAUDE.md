@@ -399,6 +399,14 @@ LANGFUSE_PUBLIC_KEY="your-public-key"
 LANGFUSE_SECRET_KEY="your-secret-key"
 LANGFUSE_HOST="https://cloud.langfuse.com"  # or your self-hosted instance
 
+# Optional: Default prompt label (defaults to APP_ENV value)
+# If not set, automatically matches your environment:
+#   - development env → uses "development" prompt
+#   - staging env → uses "staging" prompt
+#   - production env → uses "production" prompt
+# Set this to override the automatic environment matching
+# PROMPT_LABEL="staging"  # Use staging prompt in production environment
+
 # Optional: Override default prompt name
 # PROMPT_NAME="custom-prompt"  # defaults to "system-prompt"
 ```

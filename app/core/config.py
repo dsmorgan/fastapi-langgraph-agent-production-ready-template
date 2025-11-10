@@ -202,6 +202,20 @@ class Settings:
         self.EVALUATION_API_KEY = os.getenv("EVALUATION_API_KEY", self.OPENAI_API_KEY)
         self.EVALUATION_SLEEP_TIME = int(os.getenv("EVALUATION_SLEEP_TIME", "10"))
 
+        # Mem0 Configuration
+        self.MEM0_API_KEY = os.getenv("MEM0_API_KEY", "")
+        self.MEM0_ORG_ID = os.getenv("MEM0_ORG_ID", "")
+        self.MEM0_PROJECT_ID = os.getenv("MEM0_PROJECT_ID", "")
+        self.MEM0_ENABLED = os.getenv("MEM0_ENABLED", "true").lower() in ("true", "1", "t", "yes")
+        # Maximum number of recent messages to keep in checkpoint (for current session)
+        self.MEM0_CHECKPOINT_MESSAGE_LIMIT = int(os.getenv("MEM0_CHECKPOINT_MESSAGE_LIMIT", "10"))
+        # Maximum tokens for mem0 context injection
+        self.MEM0_CONTEXT_MAX_TOKENS = int(os.getenv("MEM0_CONTEXT_MAX_TOKENS", "500"))
+
+        # Prompt Management Configuration
+        # Default prompt label: use explicit PROMPT_LABEL if set, otherwise match APP_ENV
+        self.DEFAULT_PROMPT_LABEL = os.getenv("PROMPT_LABEL", self.ENVIRONMENT.value)
+
         # Apply environment-specific settings
         self.apply_environment_settings()
 
