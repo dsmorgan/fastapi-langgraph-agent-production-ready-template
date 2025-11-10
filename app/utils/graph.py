@@ -78,6 +78,16 @@ def prepare_messages(messages: list[Message], llm: BaseChatModel, system_prompt:
     Returns:
         list[Message]: The prepared messages.
     """
+    # Extract any existing system messages (e.g., mem0 context) before trimming
+    existing_system_content = None
+    for msg in messages:
+        if isinstance(msg, dict) and msg.get("role") == "system":
+            existing_system_content = msg.get("content")
+            break
+        elif hasattr(msg, "role") and msg.role == "system":
+            existing_system_content = msg.content
+            break
+
     try:
         trimmed_messages = _trim_messages(
             dump_messages(messages),
@@ -101,4 +111,10 @@ def prepare_messages(messages: list[Message], llm: BaseChatModel, system_prompt:
         else:
             raise
 
-    return [Message(role="system", content=system_prompt)] + trimmed_messages
+    # Merge the default system prompt with any existing system context (e.g., from mem0)
+    if existing_system_content:
+        merged_prompt = f"{system_prompt}\n\n{existing_system_content}"
+    else:
+        merged_prompt = system_prompt
+
+    return [Message(role="system", content=merged_prompt)] + trimmed_messages

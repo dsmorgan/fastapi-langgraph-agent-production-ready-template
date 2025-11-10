@@ -2,7 +2,10 @@
 
 import re
 import uuid
-from typing import Annotated
+from typing import (
+    Annotated,
+    Optional,
+)
 
 from langgraph.graph.message import add_messages
 from pydantic import (
@@ -19,6 +22,7 @@ class GraphState(BaseModel):
         default_factory=list, description="The messages in the conversation"
     )
     session_id: str = Field(..., description="The unique identifier for the conversation session")
+    user_id: Optional[int] = Field(default=None, description="The user ID for mem0 context injection")
 
     @field_validator("session_id")
     @classmethod

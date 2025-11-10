@@ -38,6 +38,7 @@ from app.schemas import (
     Message,
 )
 from app.services.llm import llm_service
+from app.services.mem0_service import mem0_service
 from app.utils import (
     dump_messages,
     prepare_messages,
@@ -122,8 +123,42 @@ class LangGraphAgent:
             else settings.DEFAULT_LLM_MODEL
         )
 
+        # Inject mem0 context if user_id is available
+        messages_for_processing = list(state.messages)
+        if state.user_id and settings.MEM0_ENABLED:
+            # Check if mem0 context is already in messages to avoid double-injection
+            has_mem0_context = any(
+                isinstance(msg, dict) and msg.get("role") == "system" and "Here is what you know about the user" in msg.get("content", "")
+                or (hasattr(msg, "role") and msg.role == "system" and "Here is what you know about the user" in getattr(msg, "content", ""))
+                for msg in messages_for_processing
+            )
+
+            if not has_mem0_context:
+                try:
+                    user_context = await mem0_service.get_user_context(user_id=state.user_id)
+                    if user_context:
+                        context_message = Message(
+                            role="system",
+                            content=f"Here is what you know about the user:\n\n{user_context}",
+                        )
+                        messages_for_processing = [context_message] + messages_for_processing
+                        logger.info(
+                            "mem0_context_injected_in_chat_node",
+                            session_id=state.session_id,
+                            user_id=state.user_id,
+                            context_length=len(user_context),
+                        )
+                except Exception as e:
+                    logger.error(
+                        "mem0_context_injection_failed_in_chat_node",
+                        session_id=state.session_id,
+                        user_id=state.user_id,
+                        error=str(e),
+                    )
+                    # Continue without mem0 context if injection fails
+
         # Prepare messages with system prompt
-        messages = prepare_messages(state.messages, current_llm, SYSTEM_PROMPT)
+        messages = prepare_messages(messages_for_processing, current_llm, SYSTEM_PROMPT)
 
         try:
             # Use LLM service with automatic retries and circular fallback
@@ -227,14 +262,14 @@ class LangGraphAgent:
         self,
         messages: list[Message],
         session_id: str,
-        user_id: Optional[str] = None,
+        user_id: Optional[int] = None,
     ) -> list[dict]:
         """Get a response from the LLM.
 
         Args:
             messages (list[Message]): The messages to send to the LLM.
             session_id (str): The session ID for Langfuse tracking.
-            user_id (Optional[str]): The user ID for Langfuse tracking.
+            user_id (Optional[int]): The user ID for Langfuse tracking and mem0 context injection.
 
         Returns:
             list[dict]: The response from the LLM.
@@ -253,7 +288,7 @@ class LangGraphAgent:
         }
         try:
             response = await self._graph.ainvoke(
-                {"messages": dump_messages(messages), "session_id": session_id}, config
+                {"messages": dump_messages(messages), "session_id": session_id, "user_id": user_id}, config
             )
             return self.__process_messages(response["messages"])
         except Exception as e:
@@ -261,14 +296,14 @@ class LangGraphAgent:
             raise e
 
     async def get_stream_response(
-        self, messages: list[Message], session_id: str, user_id: Optional[str] = None
+        self, messages: list[Message], session_id: str, user_id: Optional[int] = None
     ) -> AsyncGenerator[str, None]:
         """Get a stream response from the LLM.
 
         Args:
             messages (list[Message]): The messages to send to the LLM.
             session_id (str): The session ID for the conversation.
-            user_id (Optional[str]): The user ID for the conversation.
+            user_id (Optional[int]): The user ID for the conversation and mem0 context injection.
 
         Yields:
             str: Tokens of the LLM response.
@@ -286,7 +321,7 @@ class LangGraphAgent:
 
         try:
             async for token, _ in self._graph.astream(
-                {"messages": dump_messages(messages), "session_id": session_id}, config, stream_mode="messages"
+                {"messages": dump_messages(messages), "session_id": session_id, "user_id": user_id}, config, stream_mode="messages"
             ):
                 try:
                     yield token.content
