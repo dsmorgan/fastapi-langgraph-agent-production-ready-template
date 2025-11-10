@@ -1,5 +1,6 @@
 """This file contains the LangGraph Agent/workflow and interactions with the LLM."""
 
+from datetime import datetime
 from typing import (
     AsyncGenerator,
     Optional,
@@ -39,6 +40,7 @@ from app.schemas import (
 )
 from app.services.llm import llm_service
 from app.services.mem0_service import mem0_service
+from app.services.prompt_manager import prompt_manager
 from app.utils import (
     dump_messages,
     prepare_messages,
@@ -157,8 +159,54 @@ class LangGraphAgent:
                     )
                     # Continue without mem0 context if injection fails
 
+        # Fetch prompt from Langfuse for this session
+        # Disable caching to ensure fresh prompt fetch for each new session
+        prompt_label = state.prompt_label or "production"
+        try:
+            prompt_data = await prompt_manager.get_prompt(
+                name=state.prompt_name or "system-prompt",
+                label=prompt_label,
+                use_cache=False,  # Fetch fresh prompt for each session
+            )
+
+            # Compile prompt with runtime variables
+            system_prompt = prompt_manager.compile_prompt(
+                prompt_data,
+                agent_name=settings.PROJECT_NAME + " Agent",
+                current_date_and_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            )
+
+            # Store prompt metadata in state for tracing
+            state_updates = {
+                "prompt_template": system_prompt,
+                "prompt_config": prompt_data.config,
+                "prompt_version": prompt_data.version,
+            }
+
+            logger.info(
+                "prompt_fetched_for_session",
+                session_id=state.session_id,
+                prompt_label=prompt_label,
+                prompt_version=prompt_data.version,
+                prompt_labels=prompt_data.labels,
+            )
+        except Exception as e:
+            logger.error(
+                "prompt_fetch_failed_using_default",
+                session_id=state.session_id,
+                prompt_label=prompt_label,
+                error=str(e),
+            )
+            # Fall back to default system prompt
+            system_prompt = SYSTEM_PROMPT
+            state_updates = {
+                "prompt_template": system_prompt,
+                "prompt_config": {},
+                "prompt_version": 0,
+            }
+
         # Prepare messages with system prompt
-        messages = prepare_messages(messages_for_processing, current_llm, SYSTEM_PROMPT)
+        messages = prepare_messages(messages_for_processing, current_llm, system_prompt)
 
         try:
             # Use LLM service with automatic retries and circular fallback
@@ -173,6 +221,8 @@ class LangGraphAgent:
                 session_id=state.session_id,
                 model=model_name,
                 environment=settings.ENVIRONMENT.value,
+                prompt_version=state_updates.get("prompt_version"),
+                prompt_label=prompt_label,
             )
 
             # Determine next node based on whether there are tool calls
@@ -181,7 +231,14 @@ class LangGraphAgent:
             else:
                 goto = END
 
-            return Command(update={"messages": [response_message]}, goto=goto)
+            # Return response with prompt metadata updates
+            return Command(
+                update={
+                    "messages": [response_message],
+                    **state_updates,  # Include prompt metadata
+                },
+                goto=goto,
+            )
         except Exception as e:
             logger.error(
                 "llm_call_failed_all_models",
@@ -263,6 +320,7 @@ class LangGraphAgent:
         messages: list[Message],
         session_id: str,
         user_id: Optional[int] = None,
+        prompt_label: Optional[str] = None,
     ) -> list[dict]:
         """Get a response from the LLM.
 
@@ -270,6 +328,7 @@ class LangGraphAgent:
             messages (list[Message]): The messages to send to the LLM.
             session_id (str): The session ID for Langfuse tracking.
             user_id (Optional[int]): The user ID for Langfuse tracking and mem0 context injection.
+            prompt_label (Optional[str]): The Langfuse prompt label to use (production, staging, etc.).
 
         Returns:
             list[dict]: The response from the LLM.
@@ -284,11 +343,18 @@ class LangGraphAgent:
                 "session_id": session_id,
                 "environment": settings.ENVIRONMENT.value,
                 "debug": settings.DEBUG,
+                "prompt_label": prompt_label or "production",
             },
         }
         try:
             response = await self._graph.ainvoke(
-                {"messages": dump_messages(messages), "session_id": session_id, "user_id": user_id}, config
+                {
+                    "messages": dump_messages(messages),
+                    "session_id": session_id,
+                    "user_id": user_id,
+                    "prompt_label": prompt_label or "production",
+                },
+                config,
             )
             return self.__process_messages(response["messages"])
         except Exception as e:
@@ -296,7 +362,7 @@ class LangGraphAgent:
             raise e
 
     async def get_stream_response(
-        self, messages: list[Message], session_id: str, user_id: Optional[int] = None
+        self, messages: list[Message], session_id: str, user_id: Optional[int] = None, prompt_label: Optional[str] = None
     ) -> AsyncGenerator[str, None]:
         """Get a stream response from the LLM.
 
@@ -304,24 +370,35 @@ class LangGraphAgent:
             messages (list[Message]): The messages to send to the LLM.
             session_id (str): The session ID for the conversation.
             user_id (Optional[int]): The user ID for the conversation and mem0 context injection.
+            prompt_label (Optional[str]): The Langfuse prompt label to use (production, staging, etc.).
 
         Yields:
             str: Tokens of the LLM response.
         """
         config = {
             "configurable": {"thread_id": session_id},
-            "callbacks": [
-                CallbackHandler(
-                    environment=settings.ENVIRONMENT.value, debug=False, user_id=user_id, session_id=session_id
-                )
-            ],
+            "callbacks": [CallbackHandler()],
+            "metadata": {
+                "user_id": user_id,
+                "session_id": session_id,
+                "environment": settings.ENVIRONMENT.value,
+                "debug": settings.DEBUG,
+                "prompt_label": prompt_label or "production",
+            },
         }
         if self._graph is None:
             self._graph = await self.create_graph()
 
         try:
             async for token, _ in self._graph.astream(
-                {"messages": dump_messages(messages), "session_id": session_id, "user_id": user_id}, config, stream_mode="messages"
+                {
+                    "messages": dump_messages(messages),
+                    "session_id": session_id,
+                    "user_id": user_id,
+                    "prompt_label": prompt_label or "production",
+                },
+                config,
+                stream_mode="messages",
             ):
                 try:
                     yield token.content

@@ -27,6 +27,9 @@ from app.schemas.chat import (
     Message,
     StreamResponse,
 )
+from app.services.session_service import session_memory_manager
+from app.services.mem0_service import mem0_service
+from app.utils.memory_extraction import memory_extractor
 
 router = APIRouter()
 agent = LangGraphAgent()
@@ -39,6 +42,7 @@ async def chat(
     request: Request,
     chat_request: ChatRequest,
     session: Session = Depends(get_current_session),
+    prompt_label: str = None,
 ):
     """Process a chat request using LangGraph.
 
@@ -46,6 +50,7 @@ async def chat(
         request: The FastAPI request object for rate limiting.
         chat_request: The chat request containing messages.
         session: The current session from the auth token.
+        prompt_label: Optional Langfuse prompt label (production, staging, etc.).
 
     Returns:
         ChatResponse: The processed chat response.
@@ -60,13 +65,82 @@ async def chat(
             message_count=len(chat_request.messages),
         )
 
-       
+        # Inject all user memories from mem0 into context
+        messages_with_context = list(chat_request.messages)
+        if settings.MEM0_ENABLED:
+            # Get all user memories and inject into context
+            user_context = await mem0_service.get_user_context(user_id=session.user_id)
+
+            if user_context:
+                # Prepend context as a system message
+                context_message = Message(
+                    role="system",
+                    content=f"Here is what you know about the user:\n\n{user_context}",
+                )
+                messages_with_context = [context_message] + messages_with_context
+                logger.info(
+                    "mem0_context_injected",
+                    session_id=session.id,
+                    user_id=session.user_id,
+                    context_length=len(user_context),
+                )
+            else:
+                logger.info(
+                    "no_mem0_context_found",
+                    session_id=session.id,
+                    user_id=session.user_id,
+                )
 
         result = await agent.get_response(
-            chat_request.messages, session.id, user_id=session.user_id
+            messages_with_context, session.id, user_id=session.user_id, prompt_label=prompt_label
         )
 
         logger.info("chat_request_processed", session_id=session.id)
+
+        # Extract and store memories after LLM exchange
+        if settings.MEM0_ENABLED and result:
+            # Get all messages including the new response
+            # result is a list of Message objects
+            assistant_message = result[0] if result else None
+            assistant_content = assistant_message.content if assistant_message else ""
+            all_messages = messages_with_context + [Message(role="assistant", content=assistant_content)] if assistant_content else messages_with_context
+
+            try:
+                # Extract key memories from this exchange
+                extracted = await memory_extractor.extract_memories_from_conversation(
+                    [{"role": m.role, "content": m.content} for m in all_messages],
+                    session.user_id,
+                )
+
+                # Store facts immediately
+                for fact in extracted.get("facts", []):
+                    await mem0_service.add_memory(
+                        user_id=session.user_id,
+                        data=fact,
+                        memory_type="fact",
+                    )
+
+                # Store preferences immediately
+                for preference in extracted.get("preferences", []):
+                    await mem0_service.add_memory(
+                        user_id=session.user_id,
+                        data=preference,
+                        memory_type="preference",
+                    )
+
+                logger.info(
+                    "memories_extracted_and_stored",
+                    session_id=session.id,
+                    facts_count=len(extracted.get("facts", [])),
+                    preferences_count=len(extracted.get("preferences", [])),
+                )
+            except Exception as e:
+                logger.error(
+                    "memory_extraction_on_chat_failed",
+                    session_id=session.id,
+                    error=str(e),
+                )
+                # Don't fail the chat request if memory extraction fails
 
         return ChatResponse(messages=result)
     except Exception as e:
@@ -80,6 +154,7 @@ async def chat_stream(
     request: Request,
     chat_request: ChatRequest,
     session: Session = Depends(get_current_session),
+    prompt_label: str = None,
 ):
     """Process a chat request using LangGraph with streaming response.
 
@@ -87,6 +162,7 @@ async def chat_stream(
         request: The FastAPI request object for rate limiting.
         chat_request: The chat request containing messages.
         session: The current session from the auth token.
+        prompt_label: Optional Langfuse prompt label (production, staging, etc.).
 
     Returns:
         StreamingResponse: A streaming response of the chat completion.
@@ -101,6 +177,32 @@ async def chat_stream(
             message_count=len(chat_request.messages),
         )
 
+        # Inject all user memories from mem0 into context
+        messages_with_context = list(chat_request.messages)
+        if settings.MEM0_ENABLED:
+            # Get all user memories and inject into context
+            user_context = await mem0_service.get_user_context(user_id=session.user_id)
+
+            if user_context:
+                # Prepend context as a system message
+                context_message = Message(
+                    role="system",
+                    content=f"Here is what you know about the user:\n\n{user_context}",
+                )
+                messages_with_context = [context_message] + messages_with_context
+                logger.info(
+                    "mem0_context_injected_stream",
+                    session_id=session.id,
+                    user_id=session.user_id,
+                    context_length=len(user_context),
+                )
+            else:
+                logger.info(
+                    "no_mem0_context_found_stream",
+                    session_id=session.id,
+                    user_id=session.user_id,
+                )
+
         async def event_generator():
             """Generate streaming events.
 
@@ -114,7 +216,7 @@ async def chat_stream(
                 full_response = ""
                 with llm_stream_duration_seconds.labels(model=agent.llm.model_name).time():
                     async for chunk in agent.get_stream_response(
-                        chat_request.messages, session.id, user_id=session.user_id
+                        messages_with_context, session.id, user_id=session.user_id, prompt_label=prompt_label
                      ):
                         full_response += chunk
                         response = StreamResponse(content=chunk, done=False)
@@ -123,6 +225,48 @@ async def chat_stream(
                 # Send final message indicating completion
                 final_response = StreamResponse(content="", done=True)
                 yield f"data: {json.dumps(final_response.model_dump())}\n\n"
+
+                # Extract and store memories after streaming completes
+                if settings.MEM0_ENABLED and full_response:
+                    try:
+                        # Get all messages including the new response (convert Message objects to dicts for extraction)
+                        all_messages = messages_with_context + [Message(role="assistant", content=full_response)]
+
+                        # Extract key memories from this exchange
+                        extracted = await memory_extractor.extract_memories_from_conversation(
+                            [{"role": m.role, "content": m.content} for m in all_messages],
+                            session.user_id,
+                        )
+
+                        # Store facts immediately
+                        for fact in extracted.get("facts", []):
+                            await mem0_service.add_memory(
+                                user_id=session.user_id,
+                                data=fact,
+                                memory_type="fact",
+                            )
+
+                        # Store preferences immediately
+                        for preference in extracted.get("preferences", []):
+                            await mem0_service.add_memory(
+                                user_id=session.user_id,
+                                data=preference,
+                                memory_type="preference",
+                            )
+
+                        logger.info(
+                            "stream_memories_extracted_and_stored",
+                            session_id=session.id,
+                            facts_count=len(extracted.get("facts", [])),
+                            preferences_count=len(extracted.get("preferences", [])),
+                        )
+                    except Exception as e:
+                        logger.error(
+                            "stream_memory_extraction_failed",
+                            session_id=session.id,
+                            error=str(e),
+                        )
+                        # Don't fail the stream if memory extraction fails
 
             except Exception as e:
                 logger.error(
