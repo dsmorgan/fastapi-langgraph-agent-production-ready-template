@@ -24,7 +24,7 @@ class GraphState(BaseModel):
     session_id: str = Field(..., description="The unique identifier for the conversation session")
     user_id: Optional[int] = Field(default=None, description="The user ID for mem0 context injection")
     prompt_label: Optional[str] = Field(
-        default="production", description="The Langfuse prompt label to use (production, staging, etc.)"
+        default=None, description="The Langfuse prompt label to use (production, staging, etc.)"
     )
     prompt_template: Optional[str] = Field(default=None, description="The compiled prompt template for this session")
     prompt_config: Optional[dict] = Field(

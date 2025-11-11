@@ -343,7 +343,7 @@ class LangGraphAgent:
                 "session_id": session_id,
                 "environment": settings.ENVIRONMENT.value,
                 "debug": settings.DEBUG,
-                "prompt_label": prompt_label or "production",
+                "prompt_label": prompt_label or settings.DEFAULT_PROMPT_LABEL,
             },
         }
         try:
@@ -352,7 +352,7 @@ class LangGraphAgent:
                     "messages": dump_messages(messages),
                     "session_id": session_id,
                     "user_id": user_id,
-                    "prompt_label": prompt_label or "production",
+                    "prompt_label": prompt_label or settings.DEFAULT_PROMPT_LABEL,
                 },
                 config,
             )
@@ -383,7 +383,7 @@ class LangGraphAgent:
                 "session_id": session_id,
                 "environment": settings.ENVIRONMENT.value,
                 "debug": settings.DEBUG,
-                "prompt_label": prompt_label or "production",
+                "prompt_label": prompt_label or settings.DEFAULT_PROMPT_LABEL,
             },
         }
         if self._graph is None:
@@ -395,7 +395,7 @@ class LangGraphAgent:
                     "messages": dump_messages(messages),
                     "session_id": session_id,
                     "user_id": user_id,
-                    "prompt_label": prompt_label or "production",
+                    "prompt_label": prompt_label or settings.DEFAULT_PROMPT_LABEL,
                 },
                 config,
                 stream_mode="messages",
