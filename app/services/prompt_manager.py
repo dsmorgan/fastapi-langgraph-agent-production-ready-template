@@ -126,6 +126,7 @@ class PromptManager:
                 name=name,
                 label=label,
                 version=version,
+                cache_ttl_seconds=0,  # Disable SDK cache, use application-level cache only
             )
 
             prompt_data = PromptData(
