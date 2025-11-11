@@ -274,26 +274,26 @@ class Mem0Service:
 
             if traits:
                 context_parts.append("## User Traits")
-                for trait in traits[:3]:  # Limit to 3 traits
+                for trait in traits[:10]:  # Limit to 3 traits
                     memory_text = trait.get('memory') or trait.get('data') or trait.get('content') or str(trait)
                     context_parts.append(f"- {memory_text}")
 
             if preferences:
                 context_parts.append("\n## User Preferences")
-                for pref in preferences[:3]:
+                for pref in preferences[:10]:
                     memory_text = pref.get('memory') or pref.get('data') or pref.get('content') or str(pref)
                     context_parts.append(f"- {memory_text}")
 
             if facts:
                 context_parts.append("\n## Known Facts")
-                for fact in facts[:5]:  # Limit to 5 facts
+                for fact in facts[:10]:  # Limit to 5 facts
                     memory_text = fact.get('memory') or fact.get('data') or fact.get('content') or str(fact)
                     context_parts.append(f"- {memory_text}")
 
             # Include uncategorized memories (they might be important)
             if uncategorized:
                 context_parts.append("\n## Other Information")
-                for item in uncategorized[:5]:  # Limit to 5 uncategorized
+                for item in uncategorized[:10]:  # Limit to 5 uncategorized
                     if isinstance(item, dict):
                         content = item.get("memory") or item.get("data") or item.get("content") or str(item)
                     else:

@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LangGraph AI Agent Test Client</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            margin: 0;
+            color: #333;
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+        }
+
+        .sidebar {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            height: fit-content;
+        }
+
+        .main {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .section {
+            margin-bottom: 25px;
+        }
+
+        .section h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.3s ease;
+        }
+
+        button:hover {
+            background: #5568d3;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        button.secondary {
+            background: #6c757d;
+        }
+
+        button.secondary:hover {
+            background: #5a6268;
+        }
+
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .button-group button {
+            margin-bottom: 0;
+        }
+
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            display: flex;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 12px 15px;
+            border-radius: 8px;
+            word-wrap: break-word;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .message.user .message-content {
+            background: #667eea;
+            color: white;
+        }
+
+        .message.assistant .message-content {
+            background: #e9ecef;
+            color: #333;
+        }
+
+        .message-label {
+            font-size: 12px;
+            margin-bottom: 4px;
+            color: #666;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .message.user .message-label {
+            color: #667eea;
+            text-align: right;
+        }
+
+        .message.assistant .message-label {
+            color: #666;
+        }
+
+        .input-area {
+            padding: 20px;
+            border-top: 1px solid #e9ecef;
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-area input {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        .input-area button {
+            flex: 0 0 100px;
+        }
+
+        .toggle-group {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+
+        .toggle-group label {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .toggle-group input[type="radio"] {
+            width: auto;
+            margin: 0 5px 0 0;
+        }
+
+        .user-info {
+            background: #f0f0f0;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-bottom: 15px;
+        }
+
+        .user-info p {
+            margin: 5px 0;
+            word-break: break-all;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            background: currentColor;
+            border-radius: 50%;
+            animation: blink 1.5s infinite;
+            margin-left: 5px;
+        }
+
+        @keyframes blink {
+            0%, 20%, 50%, 80%, 100% {
+                opacity: 1;
+            }
+            40% {
+                opacity: 0.3;
+            }
+            60% {
+                opacity: 0.6;
+            }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+
+            .message-content {
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 LangGraph AI Agent Test Client</h1>
+            <p style="color: #666; margin-top: 10px; font-size: 14px;">Test the chat API with authentication and real-time streaming</p>
+        </div>
+
+        <div class="content">
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <!-- Server Configuration Section -->
+                <div class="section">
+                    <h3>Server Configuration</h3>
+                    <input type="text" id="serverUrl" placeholder="http://localhost:8000">
+                    <button onclick="updateServerUrl()">Update</button>
+                    <button onclick="testConnection()" class="secondary">Test Connection</button>
+                    <div id="connectionStatus"></div>
+                </div>
+
+                <!-- Auth Section -->
+                <div class="section" id="authSection">
+                    <h3>Authentication</h3>
+                    <div id="authStatus"></div>
+
+                    <div id="loginForm">
+                        <input type="email" id="loginEmail" placeholder="Email" required>
+                        <input type="password" id="loginPassword" placeholder="Password" required>
+                        <button onclick="login()">Login</button>
+                        <button onclick="toggleRegister()" class="secondary">Create Account</button>
+                    </div>
+
+                    <div id="registerForm" class="hidden">
+                        <input type="email" id="registerEmail" placeholder="Email" required>
+                        <input type="password" id="registerPassword" placeholder="Password" required>
+                        <input type="password" id="registerConfirm" placeholder="Confirm Password" required>
+                        <button onclick="register()">Sign Up</button>
+                        <button onclick="toggleRegister()" class="secondary">Back to Login</button>
+                    </div>
+
+                    <div id="loggedInPanel" class="hidden">
+                        <div class="user-info">
+                            <p><strong>User ID:</strong> <span id="userIdDisplay"></span></p>
+                            <p><strong>Email:</strong> <span id="emailDisplay"></span></p>
+                        </div>
+                        <button onclick="logout()" class="secondary">Logout</button>
+                    </div>
+                </div>
+
+                <!-- Session Section -->
+                <div class="section" id="sessionSection" class="hidden">
+                    <h3>Chat Session</h3>
+                    <div id="sessionStatus"></div>
+
+                    <input type="text" id="sessionName" placeholder="Session name (optional)">
+                    <button onclick="createSession()">Create Session</button>
+
+                    <div id="sessionPanel" class="hidden" style="margin-top: 15px;">
+                        <div class="user-info">
+                            <p><strong>Session:</strong> <span id="sessionIdDisplay"></span></p>
+                        </div>
+                        <button onclick="clearHistory()" class="secondary">Clear History</button>
+                        <button onclick="deleteSession()" class="secondary" style="background: #dc3545;">Delete Session</button>
+                    </div>
+                </div>
+
+                <!-- Settings Section -->
+                <div class="section" id="settingsSection" class="hidden">
+                    <h3>Settings</h3>
+                    <div class="toggle-group">
+                        <label>
+                            <input type="radio" name="chatMode" value="stream" checked onchange="updateChatMode()">
+                            Stream Mode
+                        </label>
+                    </div>
+                    <div class="toggle-group">
+                        <label>
+                            <input type="radio" name="chatMode" value="normal" onchange="updateChatMode()">
+                            Normal Mode
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Chat Area -->
+            <div class="main" id="chatArea" class="hidden">
+                <div class="messages" id="messagesContainer">
+                    <div style="text-align: center; color: #999; padding: 20px;">
+                        Start a conversation...
+                    </div>
+                </div>
+                <div class="input-area">
+                    <input
+                        type="text"
+                        id="messageInput"
+                        placeholder="Type your message..."
+                        onkeypress="handleKeyPress(event)"
+                    >
+                    <button onclick="sendMessage()" id="sendBtn">Send</button>
+                </div>
+            </div>
+
+            <!-- Welcome Message -->
+            <div class="main" id="welcomeArea">
+                <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; text-align: center; padding: 40px; color: #999;">
+                    <div style="font-size: 48px; margin-bottom: 20px;">👋</div>
+                    <h2 style="color: #333; margin-bottom: 10px;">Welcome</h2>
+                    <p>Login or create an account to start chatting with the AI agent</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration (modifiable)
+        let API_BASE = localStorage.getItem('apiBase') || 'http://localhost:8000/api/v1';
+
+        // State management
+        const state = {
+            userToken: localStorage.getItem('userToken') || null,
+            userId: localStorage.getItem('userId') || null,
+            userEmail: localStorage.getItem('userEmail') || null,
+            sessionToken: localStorage.getItem('sessionToken') || null,
+            sessionId: localStorage.getItem('sessionId') || null,
+            chatMode: 'stream', // 'stream' or 'normal'
+            messages: [],
+            isLoading: false
+        };
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            // Set the server URL in the input field
+            document.getElementById('serverUrl').value = API_BASE.replace('/api/v1', '');
+            restoreSession();
+            updateUI();
+        });
+
+        // ============ Server Configuration Functions ============
+
+        function updateServerUrl() {
+            const urlInput = document.getElementById('serverUrl').value.trim();
+            const statusEl = document.getElementById('connectionStatus');
+
+            if (!urlInput) {
+                showStatus(statusEl, 'Please enter a server URL', 'error');
+                return;
+            }
+
+            // Remove trailing slash if present
+            const cleanUrl = urlInput.replace(/\/$/, '');
+
+            // Validate URL format
+            try {
+                new URL(cleanUrl);
+            } catch (e) {
+                showStatus(statusEl, 'Invalid URL format', 'error');
+                return;
+            }
+
+            API_BASE = cleanUrl + '/api/v1';
+            localStorage.setItem('apiBase', API_BASE);
+            showStatus(statusEl, 'Server URL updated!', 'success');
+            console.log('API Base URL:', API_BASE);
+        }
+
+        async function testConnection() {
+            const statusEl = document.getElementById('connectionStatus');
+            showStatus(statusEl, 'Testing connection...', 'info');
+
+            try {
+                const response = await fetch(API_BASE.replace('/api/v1', '/health'), {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                console.log('Health check status:', response.status);
+                const data = await response.json();
+                console.log('Health check response:', data);
+
+                if (response.ok) {
+                    showStatus(statusEl, `✓ Connected! Server is healthy.`, 'success');
+                } else {
+                    showStatus(statusEl, `✗ Server returned ${response.status}`, 'error');
+                }
+            } catch (error) {
+                console.error('Connection error:', error);
+                showStatus(statusEl, `✗ Connection failed: ${error.message}. Check console for details.`, 'error');
+            }
+        }
+
+        // ============ Auth Functions ============
+
+        function toggleRegister() {
+            document.getElementById('loginForm').classList.toggle('hidden');
+            document.getElementById('registerForm').classList.toggle('hidden');
+        }
+
+        async function register() {
+            const email = document.getElementById('registerEmail').value;
+            const password = document.getElementById('registerPassword').value;
+            const confirm = document.getElementById('registerConfirm').value;
+            const statusEl = document.getElementById('authStatus');
+
+            if (!email || !password || !confirm) {
+                showStatus(statusEl, 'Please fill all fields', 'error');
+                return;
+            }
+
+            if (password !== confirm) {
+                showStatus(statusEl, 'Passwords do not match', 'error');
+                return;
+            }
+
+            try {
+                showStatus(statusEl, 'Creating account...', 'info');
+                console.log('Attempting register to:', `${API_BASE}/auth/register`);
+                const response = await fetch(`${API_BASE}/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                console.log('Register response status:', response.status);
+                const data = await response.json();
+                console.log('Register response data:', data);
+
+                if (!response.ok) {
+                    showStatus(statusEl, data.detail || `Registration failed (${response.status})`, 'error');
+                    return;
+                }
+
+                // Auto-login after registration
+                state.userToken = data.token;
+                state.userId = data.id;
+                state.userEmail = data.email;
+                saveSession();
+                showStatus(statusEl, 'Account created successfully!', 'success');
+                toggleRegister();
+                updateUI();
+            } catch (error) {
+                console.error('Register error:', error);
+                showStatus(statusEl, `Error: ${error.message}. Check console for details.`, 'error');
+            }
+        }
+
+        async function login() {
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            const statusEl = document.getElementById('authStatus');
+
+            if (!email || !password) {
+                showStatus(statusEl, 'Please enter email and password', 'error');
+                return;
+            }
+
+            try {
+                showStatus(statusEl, 'Logging in...', 'info');
+                console.log('Attempting login to:', `${API_BASE}/auth/login`);
+
+                const formData = new FormData();
+                formData.append('username', email);
+                formData.append('password', password);
+                formData.append('grant_type', 'password');
+
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                console.log('Login response status:', response.status);
+                const data = await response.json();
+                console.log('Login response data:', data);
+
+                if (!response.ok) {
+                    showStatus(statusEl, data.detail || `Login failed (${response.status})`, 'error');
+                    return;
+                }
+
+                state.userToken = data.access_token;
+                state.userEmail = email;
+                state.sessionToken = null;
+                state.sessionId = null;
+                state.messages = [];
+
+                // Extract user ID from token if possible
+                try {
+                    const payload = JSON.parse(atob(data.access_token.split('.')[1]));
+                    state.userId = payload.sub;
+                } catch (e) {
+                    state.userId = 'unknown';
+                }
+
+                saveSession();
+                showStatus(statusEl, 'Logged in successfully!', 'success');
+                updateUI();
+            } catch (error) {
+                console.error('Login error:', error);
+                showStatus(statusEl, `Error: ${error.message}. Check console for details.`, 'error');
+            }
+        }
+
+        function logout() {
+            state.userToken = null;
+            state.userId = null;
+            state.userEmail = null;
+            state.sessionToken = null;
+            state.sessionId = null;
+            state.messages = [];
+            localStorage.clear();
+            updateUI();
+        }
+
+        // ============ Session Functions ============
+
+        async function createSession() {
+            const statusEl = document.getElementById('sessionStatus');
+            const nameInput = document.getElementById('sessionName');
+
+            try {
+                showStatus(statusEl, 'Creating session...', 'info');
+
+                const response = await fetch(`${API_BASE}/auth/session`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${state.userToken}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    showStatus(statusEl, data.detail || 'Failed to create session', 'error');
+                    return;
+                }
+
+                state.sessionToken = data.token.access_token;
+                state.sessionId = data.session_id;
+                state.messages = [];
+                nameInput.value = '';
+                saveSession();
+                showStatus(statusEl, 'Session created!', 'success');
+                loadMessages();
+                updateUI();
+            } catch (error) {
+                showStatus(statusEl, `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function deleteSession() {
+            if (!confirm('Delete this session? This cannot be undone.')) return;
+
+            const statusEl = document.getElementById('sessionStatus');
+
+            try {
+                showStatus(statusEl, 'Deleting session...', 'info');
+
+                const response = await fetch(`${API_BASE}/auth/session/${state.sessionId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${state.sessionToken}`
+                    }
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    showStatus(statusEl, data.detail || 'Failed to delete session', 'error');
+                    return;
+                }
+
+                state.sessionToken = null;
+                state.sessionId = null;
+                state.messages = [];
+                localStorage.removeItem('sessionToken');
+                localStorage.removeItem('sessionId');
+                showStatus(statusEl, 'Session deleted', 'success');
+                updateUI();
+            } catch (error) {
+                showStatus(statusEl, `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function clearHistory() {
+            if (!confirm('Clear all messages? This cannot be undone.')) return;
+
+            const statusEl = document.getElementById('sessionStatus');
+
+            try {
+                showStatus(statusEl, 'Clearing history...', 'info');
+
+                const response = await fetch(`${API_BASE}/chatbot/messages`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${state.sessionToken}`
+                    }
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    showStatus(statusEl, data.detail || 'Failed to clear history', 'error');
+                    return;
+                }
+
+                state.messages = [];
+                updateMessagesDisplay();
+                showStatus(statusEl, 'History cleared', 'success');
+            } catch (error) {
+                showStatus(statusEl, `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadMessages() {
+            try {
+                const response = await fetch(`${API_BASE}/chatbot/messages`, {
+                    headers: {
+                        'Authorization': `Bearer ${state.sessionToken}`
+                    }
+                });
+
+                const data = await response.json();
+                state.messages = data.messages || [];
+                updateMessagesDisplay();
+            } catch (error) {
+                console.error('Error loading messages:', error);
+            }
+        }
+
+        // ============ Chat Functions ============
+
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+
+            if (!message) return;
+
+            state.isLoading = true;
+            input.disabled = true;
+            document.getElementById('sendBtn').disabled = true;
+
+            // Add user message to display
+            state.messages.push({ role: 'user', content: message });
+            updateMessagesDisplay();
+            input.value = '';
+
+            try {
+                const chatRequest = {
+                    messages: state.messages
+                };
+
+                if (state.chatMode === 'stream') {
+                    await streamChat(chatRequest);
+                } else {
+                    await normalChat(chatRequest);
+                }
+            } catch (error) {
+                addMessage('assistant', `Error: ${error.message}`);
+            } finally {
+                state.isLoading = false;
+                input.disabled = false;
+                document.getElementById('sendBtn').disabled = false;
+                input.focus();
+            }
+        }
+
+        async function streamChat(chatRequest) {
+            try {
+                const response = await fetch(`${API_BASE}/chatbot/chat/stream`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${state.sessionToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(chatRequest)
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.detail || 'Stream failed');
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let assistantMessage = '';
+                let messageElement = null;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const jsonStr = line.slice(6);
+                            if (jsonStr) {
+                                const data = JSON.parse(jsonStr);
+                                if (data.content) {
+                                    assistantMessage += data.content;
+
+                                    if (!messageElement) {
+                                        messageElement = addMessageElement('assistant', '');
+                                    }
+                                    messageElement.querySelector('.message-content').textContent = assistantMessage;
+                                    document.getElementById('messagesContainer').scrollTop =
+                                        document.getElementById('messagesContainer').scrollHeight;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Add final message to state
+                state.messages.push({ role: 'assistant', content: assistantMessage });
+            } catch (error) {
+                throw error;
+            }
+        }
+
+        async function normalChat(chatRequest) {
+            try {
+                const response = await fetch(`${API_BASE}/chatbot/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${state.sessionToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(chatRequest)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Chat failed');
+                }
+
+                // Update messages with response
+                state.messages = data.messages || [];
+                updateMessagesDisplay();
+            } catch (error) {
+                throw error;
+            }
+        }
+
+        function addMessage(role, content) {
+            state.messages.push({ role, content });
+            updateMessagesDisplay();
+        }
+
+        function addMessageElement(role, content) {
+            const container = document.getElementById('messagesContainer');
+
+            // Clear welcome message
+            if (container.children.length === 1 && container.querySelector('[style*="text-align"]')) {
+                container.innerHTML = '';
+            }
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.textContent = content;
+
+            const labelDiv = document.createElement('div');
+            labelDiv.className = 'message-label';
+            labelDiv.textContent = role === 'user' ? 'You' : 'Assistant';
+
+            messageDiv.appendChild(labelDiv);
+            messageDiv.appendChild(contentDiv);
+            container.appendChild(messageDiv);
+
+            container.scrollTop = container.scrollHeight;
+            return messageDiv;
+        }
+
+        function updateMessagesDisplay() {
+            const container = document.getElementById('messagesContainer');
+            container.innerHTML = '';
+
+            if (state.messages.length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">Start a conversation...</div>';
+                return;
+            }
+
+            state.messages.forEach(msg => {
+                addMessageElement(msg.role, msg.content);
+            });
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter' && !event.shiftKey && !state.isLoading) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function updateChatMode() {
+            state.chatMode = document.querySelector('input[name="chatMode"]:checked').value;
+        }
+
+        // ============ UI Functions ============
+
+        function updateUI() {
+            const authSection = document.getElementById('authSection');
+            const sessionSection = document.getElementById('sessionSection');
+            const settingsSection = document.getElementById('settingsSection');
+            const chatArea = document.getElementById('chatArea');
+            const welcomeArea = document.getElementById('welcomeArea');
+
+            if (state.userToken) {
+                // User is logged in
+                document.getElementById('loginForm').classList.add('hidden');
+                document.getElementById('registerForm').classList.add('hidden');
+                document.getElementById('loggedInPanel').classList.remove('hidden');
+                document.getElementById('userIdDisplay').textContent = state.userId;
+                document.getElementById('emailDisplay').textContent = state.userEmail;
+
+                sessionSection.classList.remove('hidden');
+                settingsSection.classList.remove('hidden');
+
+                if (state.sessionToken && state.sessionId) {
+                    // Session is active
+                    document.getElementById('sessionPanel').classList.remove('hidden');
+                    document.getElementById('sessionIdDisplay').textContent = state.sessionId.substring(0, 20) + '...';
+                    chatArea.classList.remove('hidden');
+                    welcomeArea.classList.add('hidden');
+                    loadMessages();
+                } else {
+                    // No session yet
+                    document.getElementById('sessionPanel').classList.add('hidden');
+                    chatArea.classList.add('hidden');
+                    welcomeArea.classList.remove('hidden');
+                }
+            } else {
+                // User not logged in
+                document.getElementById('loginForm').classList.remove('hidden');
+                document.getElementById('registerForm').classList.add('hidden');
+                document.getElementById('loggedInPanel').classList.add('hidden');
+
+                sessionSection.classList.add('hidden');
+                settingsSection.classList.add('hidden');
+                chatArea.classList.add('hidden');
+                welcomeArea.classList.remove('hidden');
+            }
+        }
+
+        function showStatus(element, message, type) {
+            element.innerHTML = `<div class="status ${type}">${message}</div>`;
+            if (type === 'success') {
+                setTimeout(() => {
+                    element.innerHTML = '';
+                }, 5000);
+            }
+        }
+
+        function saveSession() {
+            if (state.userToken) localStorage.setItem('userToken', state.userToken);
+            if (state.userId) localStorage.setItem('userId', state.userId);
+            if (state.userEmail) localStorage.setItem('userEmail', state.userEmail);
+            if (state.sessionToken) localStorage.setItem('sessionToken', state.sessionToken);
+            if (state.sessionId) localStorage.setItem('sessionId', state.sessionId);
+        }
+
+        function restoreSession() {
+            state.userToken = localStorage.getItem('userToken');
+            state.userId = localStorage.getItem('userId');
+            state.userEmail = localStorage.getItem('userEmail');
+            state.sessionToken = localStorage.getItem('sessionToken');
+            state.sessionId = localStorage.getItem('sessionId');
+        }
+    </script>
+</body>
+</html>

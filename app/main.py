@@ -22,7 +22,10 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from app.api.v1.api import api_router
-from app.core.config import settings
+from app.core.config import (
+    Environment,
+    settings,
+)
 from app.core.limiter import limiter
 from app.core.logging import logger
 from app.core.metrics import setup_metrics
@@ -111,10 +114,33 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 
 # Set up CORS middleware
+# In development/test, be permissive with CORS for local testing
+# In production, use explicit origins for security
+if settings.ENVIRONMENT in (Environment.DEVELOPMENT, Environment.TEST):
+    # Development: allow all origins without credentials (safe for local testing)
+    cors_origins = ["*"]
+    allow_credentials = False
+    logger.info(
+        "cors_development_mode",
+        origins="*",
+        allow_credentials=False,
+        environment=settings.ENVIRONMENT.value,
+    )
+else:
+    # Production: use explicit origins with credentials
+    cors_origins = settings.ALLOWED_ORIGINS
+    allow_credentials = True
+    logger.info(
+        "cors_production_mode",
+        origins=cors_origins,
+        allow_credentials=True,
+        environment=settings.ENVIRONMENT.value,
+    )
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
-    allow_credentials=True,
+    allow_origins=cors_origins,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
